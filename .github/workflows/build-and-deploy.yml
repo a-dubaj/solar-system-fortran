@@ -36,18 +36,34 @@ jobs:
           ./emsdk install latest
           ./emsdk activate latest
 
+      - name: Locate the flang compiler inside the image
+        run: |
+          echo "Searching for flang/flang-new binary..."
+          find /opt/flang -maxdepth 6 -type f \( -iname 'flang-new' -o -iname 'flang' \) 2>/dev/null | tee /tmp/flang_paths.txt
+          if [ ! -s /tmp/flang_paths.txt ]; then
+            echo "Not found under /opt/flang, searching whole filesystem..."
+            find / -maxdepth 6 -type f \( -iname 'flang-new' -o -iname 'flang' \) 2>/dev/null | tee /tmp/flang_paths.txt
+          fi
+          echo "Also searching for the Fortran WASM runtime library..."
+          find /opt/flang / -maxdepth 6 -iname 'libFortranRuntime*' 2>/dev/null | tee /tmp/runtime_paths.txt
+
       - name: Compile Fortran module to a WebAssembly object file
         run: |
-          . /opt/emsdk-build/emsdk_env.sh
-          export PATH="/opt/flang/host/bin:$PATH"
-          flang-new --target=wasm32-unknown-emscripten \
+          cd /opt/emsdk-build && . ./emsdk_env.sh
+          cd "$GITHUB_WORKSPACE"
+          FLANG_BIN=$(head -n1 /tmp/flang_paths.txt)
+          echo "Using flang binary: $FLANG_BIN"
+          "$FLANG_BIN" --target=wasm32-unknown-emscripten \
             -c fortran/orbital_mechanics.f90 \
             -o orbital_mechanics.o
 
       - name: Link with Emscripten into a browser-ready WASM module
         run: |
-          . /opt/emsdk-build/emsdk_env.sh
-          emcc orbital_mechanics.o /opt/flang/wasm/libFortranRuntime.a \
+          cd /opt/emsdk-build && . ./emsdk_env.sh
+          cd "$GITHUB_WORKSPACE"
+          RUNTIME_LIB=$(head -n1 /tmp/runtime_paths.txt)
+          echo "Using runtime library: $RUNTIME_LIB"
+          emcc orbital_mechanics.o "$RUNTIME_LIB" \
             -o web/orbital_mechanics.js \
             -s EXPORTED_FUNCTIONS="['_get_position','_get_body_count','_get_body_radius_km','_get_orbital_period_days','_malloc','_free']" \
             -s EXPORTED_RUNTIME_METHODS="['cwrap','ccall']" \
