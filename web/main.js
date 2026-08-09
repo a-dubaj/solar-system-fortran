@@ -99,6 +99,8 @@ Module.onRuntimeInitialized = () => {
     const getOrbitalSpeedKms = Module.cwrap('get_orbital_speed_kms', 'number', ['number']);
     const getSemiMajorAxisAu = Module.cwrap('get_semi_major_axis_au', 'number', ['number']);
     const getEccentricity = Module.cwrap('get_eccentricity', 'number', ['number']);
+    const getRotationPeriodHours = Module.cwrap('get_rotation_period_hours', 'number', ['number']);
+    const getMassEarth = Module.cwrap('get_mass_earth', 'number', ['number']);
     const getMoonCount = Module.cwrap('get_moon_count', 'number', ['number']);
     const getMoonPositionUnit = Module.cwrap(
         'get_moon_position_unit', null, ['number', 'number', 'number', 'number', 'number']
@@ -139,6 +141,16 @@ Module.onRuntimeInitialized = () => {
     const revolutionCounts = new Array(bodyCount + 1).fill(0);
     const lastAngle = new Array(bodyCount + 1).fill(0);
 
+    // Fading trail behind each planet: a short history of recent (x, y)
+    // positions in AU, redrawn each frame relative to the current
+    // pan/zoom (not stored as screen pixels, so the trail stays glued
+    // to the orbit even while zooming or panning).
+    const TRAIL_LENGTH = 40;
+    const trails = [];
+    for (let i = 1; i <= bodyCount; i++) {
+        trails.push([]);
+    }
+
     // Build the stats table once: one row per body, with a colored dot,
     // a revolution count (updates every frame), and a constant orbital
     // speed value (fetched once - it's a physical constant, unaffected
@@ -146,13 +158,16 @@ Module.onRuntimeInitialized = () => {
     const statsEl = document.getElementById('stats-table');
     const table = document.createElement('table');
     const thead = document.createElement('thead');
-    thead.innerHTML = '<tr><th>Planet</th><th>Orbits</th><th>km/s</th></tr>';
+    thead.innerHTML =
+        '<tr><th>Planet</th><th>Orbits</th><th>km/s</th>' +
+        '<th>AU</th><th>Day (h)</th><th>Mass (x Earth)</th></tr>';
     table.appendChild(thead);
     const tbody = document.createElement('tbody');
     table.appendChild(tbody);
     statsEl.appendChild(table);
 
     const orbitCountCells = new Array(bodyCount + 1);
+    const distanceCells = new Array(bodyCount + 1);
     for (let i = 1; i <= bodyCount; i++) {
         const tr = document.createElement('tr');
 
@@ -165,9 +180,10 @@ Module.onRuntimeInitialized = () => {
         tr.appendChild(nameCell);
 
         if (i === 1) {
-            // Sun: no orbit count or orbital speed
-            tr.appendChild(document.createElement('td'));
-            tr.appendChild(document.createElement('td'));
+            // Sun: no per-orbit stats
+            for (let c = 0; c < 5; c++) {
+                tr.appendChild(document.createElement('td'));
+            }
         } else {
             const orbitsCell = document.createElement('td');
             orbitsCell.className = 'num';
@@ -179,6 +195,22 @@ Module.onRuntimeInitialized = () => {
             speedCell.className = 'num';
             speedCell.textContent = getOrbitalSpeedKms(i).toFixed(1);
             tr.appendChild(speedCell);
+
+            const distanceCell = document.createElement('td');
+            distanceCell.className = 'num';
+            distanceCell.textContent = '-';
+            distanceCells[i] = distanceCell;
+            tr.appendChild(distanceCell);
+
+            const dayCell = document.createElement('td');
+            dayCell.className = 'num';
+            dayCell.textContent = getRotationPeriodHours(i).toFixed(1);
+            tr.appendChild(dayCell);
+
+            const massCell = document.createElement('td');
+            massCell.className = 'num';
+            massCell.textContent = getMassEarth(i).toFixed(3);
+            tr.appendChild(massCell);
         }
 
         tbody.appendChild(tr);
@@ -222,6 +254,42 @@ Module.onRuntimeInitialized = () => {
                     orbitCountCells[i].textContent = revolutionCounts[i];
                 }
                 lastAngle[i] = angle;
+
+                // Current distance from the Sun, in AU - the one stats
+                // table value that actually changes over time, since the
+                // orbit is elliptical rather than circular.
+                distanceCells[i].textContent = Math.hypot(xAu, yAu).toFixed(3);
+            }
+
+            // Record this frame's position into the trail (skip while
+            // paused, so the trail freezes instead of collapsing to a
+            // single stacked point)
+            if (i > 1 && !paused) {
+                const trail = trails[i - 1];
+                trail.push({ x: xAu, y: yAu });
+                if (trail.length > TRAIL_LENGTH) trail.shift();
+            }
+
+            // Draw the fading trail: a short polyline of recent positions,
+            // oldest points more transparent than the newest.
+            if (i > 1) {
+                const trail = trails[i - 1];
+                ctx.lineWidth = 1.5;
+                ctx.strokeStyle = BODY_COLORS[i - 1];
+                for (let t = 1; t < trail.length; t++) {
+                    ctx.globalAlpha = (t / trail.length) * 0.6;
+                    ctx.beginPath();
+                    ctx.moveTo(
+                        originX + trail[t - 1].x * pxPerAu,
+                        originY + trail[t - 1].y * pxPerAu
+                    );
+                    ctx.lineTo(
+                        originX + trail[t].x * pxPerAu,
+                        originY + trail[t].y * pxPerAu
+                    );
+                    ctx.stroke();
+                }
+                ctx.globalAlpha = 1;
             }
 
             // Orbit path (skip for the Sun): the actual elliptical shape,

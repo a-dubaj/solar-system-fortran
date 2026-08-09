@@ -35,6 +35,18 @@ module orbital_data
         [0.0d0, 47.4d0, 35.0d0, 29.8d0, 24.1d0, &
          13.1d0, 9.7d0, 6.8d0, 5.4d0]
 
+    ! Rotation period (day length), in hours. Real values, sign ignored
+    ! (Venus and Uranus rotate retrograde, but that doesn't matter for
+    ! a simple "how long is a day" display).
+    real(8), parameter :: rotation_period_hours(9) = &
+        [609.12d0, 1407.6d0, 5832.5d0, 23.93d0, 24.62d0, &
+         9.93d0, 10.7d0, 17.24d0, 16.11d0]
+
+    ! Mass relative to Earth (Earth = 1.0)
+    real(8), parameter :: mass_earth(9) = &
+        [333000.0d0, 0.0553d0, 0.815d0, 1.000d0, 0.107d0, &
+         317.8d0, 95.2d0, 14.5d0, 17.1d0]
+
     ! Relative body radius in km, used to keep size proportions realistic
     real(8), parameter :: body_radius_km(9) = &
         [696340.0d0, 2439.7d0, 6051.8d0, 6371.0d0, 3389.5d0, &
@@ -208,6 +220,32 @@ contains
             e = eccentricity(body_index)
         end if
     end function get_eccentricity
+
+    ! Rotation period (day length) of a body, in hours
+    function get_rotation_period_hours(body_index) &
+            bind(c, name="get_rotation_period_hours") result(h)
+        integer(c_int), value :: body_index
+        real(c_double) :: h
+
+        if (body_index < 1 .or. body_index > n_bodies) then
+            h = 0.0d0
+        else
+            h = rotation_period_hours(body_index)
+        end if
+    end function get_rotation_period_hours
+
+    ! Mass of a body relative to Earth (Earth = 1.0)
+    function get_mass_earth(body_index) &
+            bind(c, name="get_mass_earth") result(m)
+        integer(c_int), value :: body_index
+        real(c_double) :: m
+
+        if (body_index < 1 .or. body_index > n_bodies) then
+            m = 0.0d0
+        else
+            m = mass_earth(body_index)
+        end if
+    end function get_mass_earth
 
     ! Number of simulated moons for a given body (0 if none)
     function get_moon_count(body_index) bind(c, name="get_moon_count") result(n)
