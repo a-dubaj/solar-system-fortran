@@ -30,14 +30,15 @@ jobs:
 
       - name: Install Emscripten SDK
         run: |
-          git clone https://github.com/emscripten-core/emsdk.git /opt/emsdk
-          cd /opt/emsdk
+          rm -rf /opt/emsdk-build
+          git clone https://github.com/emscripten-core/emsdk.git /opt/emsdk-build
+          cd /opt/emsdk-build
           ./emsdk install latest
           ./emsdk activate latest
 
       - name: Compile Fortran module to a WebAssembly object file
         run: |
-          source /opt/emsdk/emsdk_env.sh
+          source /opt/emsdk-build/emsdk_env.sh
           export PATH="/opt/flang/host/bin:$PATH"
           flang-new --target=wasm32-unknown-emscripten \
             -c fortran/orbital_mechanics.f90 \
@@ -45,7 +46,7 @@ jobs:
 
       - name: Link with Emscripten into a browser-ready WASM module
         run: |
-          source /opt/emsdk/emsdk_env.sh
+          source /opt/emsdk-build/emsdk_env.sh
           emcc orbital_mechanics.o /opt/flang/wasm/libFortranRuntime.a \
             -o web/orbital_mechanics.js \
             -s EXPORTED_FUNCTIONS="['_get_position','_get_body_count','_get_body_radius_km','_get_orbital_period_days','_malloc','_free']" \
