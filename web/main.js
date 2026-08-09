@@ -63,7 +63,7 @@ canvas.addEventListener('wheel', (e) => {
 }, { passive: false });
 
 // Playback speed control
-let speedMultiplier = 1.0;
+let speedMultiplier = 0.00390625;
 let paused = false;
 
 document.getElementById('pause-btn').addEventListener('click', () => {
