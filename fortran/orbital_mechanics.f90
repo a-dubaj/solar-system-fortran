@@ -181,6 +181,34 @@ contains
         end if
     end function get_orbital_speed_kms
 
+    ! Semi-major axis of a body's orbit, in AU (used by JS to draw the
+    ! true elliptical orbit path, not just the current distance from the Sun)
+    function get_semi_major_axis_au(body_index) &
+            bind(c, name="get_semi_major_axis_au") result(a)
+        integer(c_int), value :: body_index
+        real(c_double) :: a
+
+        if (body_index < 1 .or. body_index > n_bodies) then
+            a = 0.0d0
+        else
+            a = semi_major_axis_au(body_index)
+        end if
+    end function get_semi_major_axis_au
+
+    ! Orbital eccentricity of a body (0 = circle). Exposed so JS can draw
+    ! the actual elliptical orbit shape instead of a circular guide.
+    function get_eccentricity(body_index) &
+            bind(c, name="get_eccentricity") result(e)
+        integer(c_int), value :: body_index
+        real(c_double) :: e
+
+        if (body_index < 1 .or. body_index > n_bodies) then
+            e = 0.0d0
+        else
+            e = eccentricity(body_index)
+        end if
+    end function get_eccentricity
+
     ! Number of simulated moons for a given body (0 if none)
     function get_moon_count(body_index) bind(c, name="get_moon_count") result(n)
         integer(c_int), value :: body_index

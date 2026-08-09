@@ -65,7 +65,7 @@ jobs:
           echo "Using runtime library: $RUNTIME_LIB"
           emcc orbital_mechanics.o "$RUNTIME_LIB" \
             -o web/orbital_mechanics.js \
-            -s EXPORTED_FUNCTIONS="['_get_position','_get_body_count','_get_body_radius_km','_get_orbital_period_days','_get_orbital_speed_kms','_get_moon_count','_get_moon_position_unit','_malloc','_free']" \
+            -s EXPORTED_FUNCTIONS="['_get_position','_get_body_count','_get_body_radius_km','_get_orbital_period_days','_get_orbital_speed_kms','_get_semi_major_axis_au','_get_eccentricity','_get_moon_count','_get_moon_position_unit','_malloc','_free']" \
             -s EXPORTED_RUNTIME_METHODS="['cwrap','ccall','HEAPF64']" \
             -s ALLOW_MEMORY_GROWTH=1
 

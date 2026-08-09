@@ -97,6 +97,8 @@ Module.onRuntimeInitialized = () => {
     const getBodyRadiusKm = Module.cwrap('get_body_radius_km', 'number', ['number']);
     const getOrbitalPeriodDays = Module.cwrap('get_orbital_period_days', 'number', ['number']);
     const getOrbitalSpeedKms = Module.cwrap('get_orbital_speed_kms', 'number', ['number']);
+    const getSemiMajorAxisAu = Module.cwrap('get_semi_major_axis_au', 'number', ['number']);
+    const getEccentricity = Module.cwrap('get_eccentricity', 'number', ['number']);
     const getMoonCount = Module.cwrap('get_moon_count', 'number', ['number']);
     const getMoonPositionUnit = Module.cwrap(
         'get_moon_position_unit', null, ['number', 'number', 'number', 'number', 'number']
@@ -116,6 +118,22 @@ Module.onRuntimeInitialized = () => {
     for (let i = 1; i <= bodyCount; i++) {
         const km = getBodyRadiusKm(i);
         displayRadiusPx.push(Math.max(2, Math.log10(km) * 2.2));
+    }
+
+    // Precompute each orbit's true elliptical geometry (in AU), used to
+    // draw a static orbit-path guide - not just a circle at the planet's
+    // current distance, which would pulsate as the planet moves along
+    // its ellipse. The Sun sits at one focus, not the ellipse's center,
+    // so the guide is offset by -a*e along the periapsis axis.
+    const ellipseSemiMajorAu = [];
+    const ellipseSemiMinorAu = [];
+    const ellipseCenterXAu = [];
+    for (let i = 1; i <= bodyCount; i++) {
+        const a = getSemiMajorAxisAu(i);
+        const e = getEccentricity(i);
+        ellipseSemiMajorAu.push(a);
+        ellipseSemiMinorAu.push(a * Math.sqrt(1 - e * e));
+        ellipseCenterXAu.push(-a * e);
     }
 
     const revolutionCounts = new Array(bodyCount + 1).fill(0);
@@ -206,12 +224,18 @@ Module.onRuntimeInitialized = () => {
                 lastAngle[i] = angle;
             }
 
-            // Orbit path (skip for the Sun)
+            // Orbit path (skip for the Sun): the actual elliptical shape,
+            // not a circle at the planet's current distance. The ellipse
+            // is centered off-origin because the Sun sits at one focus.
             if (i > 1) {
                 ctx.beginPath();
                 ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-                ctx.arc(originX, originY, xAu !== 0 || yAu !== 0
-                    ? Math.hypot(xAu, yAu) * pxPerAu : 0, 0, Math.PI * 2);
+                ctx.ellipse(
+                    originX + ellipseCenterXAu[i - 1] * pxPerAu, originY,
+                    ellipseSemiMajorAu[i - 1] * pxPerAu,
+                    ellipseSemiMinorAu[i - 1] * pxPerAu,
+                    0, 0, Math.PI * 2
+                );
                 ctx.stroke();
             }
 
