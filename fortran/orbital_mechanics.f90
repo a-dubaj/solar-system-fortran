@@ -22,6 +22,13 @@ module orbital_data
         [1.0d0, 87.969d0, 224.701d0, 365.256d0, 686.980d0, &
          4332.589d0, 10759.22d0, 30688.5d0, 60182.0d0]
 
+    ! Orbital eccentricity (0 = perfect circle, closer to 1 = more elongated).
+    ! Real values - this is what makes Mercury's orbit visibly elliptical
+    ! and Venus/Earth's orbits nearly circular.
+    real(8), parameter :: eccentricity(9) = &
+        [0.0d0, 0.2056d0, 0.0068d0, 0.0167d0, 0.0934d0, &
+         0.0484d0, 0.0539d0, 0.0473d0, 0.0086d0]
+
     ! Mean orbital speed, in km/s - a physical constant per body, independent
     ! of simulation playback speed. 0 for the Sun (not applicable).
     real(8), parameter :: orbital_speed_kms(9) = &
@@ -70,13 +77,22 @@ contains
 
     ! Returns the (x, y) position of a body, in AU, at a given simulated
     ! time (in days since epoch). The Sun is fixed at the origin.
+    !
+    ! Uses a proper elliptical (Keplerian) orbit rather than a circular
+    ! approximation: the mean anomaly is converted to eccentric anomaly
+    ! by solving Kepler's equation (M = E - e*sin(E)) via Newton-Raphson,
+    ! then to true anomaly and finally to a position in the orbital plane.
+    ! Simplification: the argument of periapsis is not modeled, so every
+    ! orbit's closest approach to the Sun lies along the same axis rather
+    ! than each planet's real, independently-oriented ellipse.
     subroutine get_position(body_index, time_days, x_au, y_au) &
             bind(c, name="get_position")
         integer(c_int), value :: body_index
         real(c_double), value :: time_days
         real(c_double), intent(out) :: x_au, y_au
 
-        real(8) :: angle
+        real(8) :: mean_anomaly, ecc, a, ecc_anomaly, true_anomaly, r
+        integer :: iter
 
         if (body_index < 1 .or. body_index > n_bodies) then
             x_au = 0.0d0
@@ -90,9 +106,33 @@ contains
             return
         end if
 
-        angle = 2.0d0 * pi * time_days / orbital_period_days(body_index)
-        x_au = semi_major_axis_au(body_index) * cos(angle)
-        y_au = semi_major_axis_au(body_index) * sin(angle)
+        ecc = eccentricity(body_index)
+        a = semi_major_axis_au(body_index)
+
+        ! Mean anomaly: where the body would be on a circular orbit of
+        ! the same period (radians, grows linearly with time)
+        mean_anomaly = 2.0d0 * pi * time_days / orbital_period_days(body_index)
+
+        ! Solve Kepler's equation for eccentric anomaly via Newton-Raphson.
+        ! 10 iterations converges comfortably even for Mercury's e=0.2056.
+        ecc_anomaly = mean_anomaly
+        do iter = 1, 10
+            ecc_anomaly = ecc_anomaly - &
+                (ecc_anomaly - ecc * sin(ecc_anomaly) - mean_anomaly) / &
+                (1.0d0 - ecc * cos(ecc_anomaly))
+        end do
+
+        ! Convert eccentric anomaly to true anomaly (actual angle swept
+        ! from the focus, i.e. from the Sun)
+        true_anomaly = 2.0d0 * atan2( &
+            sqrt(1.0d0 + ecc) * sin(ecc_anomaly / 2.0d0), &
+            sqrt(1.0d0 - ecc) * cos(ecc_anomaly / 2.0d0))
+
+        ! Distance from the Sun at this point in the orbit
+        r = a * (1.0d0 - ecc * cos(ecc_anomaly))
+
+        x_au = r * cos(true_anomaly)
+        y_au = r * sin(true_anomaly)
     end subroutine get_position
 
     ! Total number of simulated bodies (Sun + planets)
