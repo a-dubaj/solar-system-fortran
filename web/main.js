@@ -96,10 +96,16 @@ Module.onRuntimeInitialized = () => {
     const getBodyCount = Module.cwrap('get_body_count', 'number', []);
     const getBodyRadiusKm = Module.cwrap('get_body_radius_km', 'number', ['number']);
     const getOrbitalPeriodDays = Module.cwrap('get_orbital_period_days', 'number', ['number']);
+    const getMoonCount = Module.cwrap('get_moon_count', 'number', ['number']);
+    const getMoonPositionUnit = Module.cwrap(
+        'get_moon_position_unit', null, ['number', 'number', 'number', 'number', 'number']
+    );
 
     const bodyCount = getBodyCount();
 
-    // Scratch memory for the two out-parameters (x, y), as doubles
+    // Scratch memory for the two out-parameters (x, y), as doubles.
+    // Reused for both planet and moon position calls (calls are sequential,
+    // never concurrent, so sharing this scratch space is safe).
     const xPtr = Module._malloc(8);
     const yPtr = Module._malloc(8);
 
@@ -113,6 +119,12 @@ Module.onRuntimeInitialized = () => {
 
     const revolutionCounts = new Array(bodyCount + 1).fill(0);
     const lastAngle = new Array(bodyCount + 1).fill(0);
+
+    // Moon counts per body, fetched once (they never change during the run)
+    const moonCounts = [];
+    for (let i = 1; i <= bodyCount; i++) {
+        moonCounts.push(getMoonCount(i));
+    }
 
     function frame(timestamp) {
         if (lastTimestamp === null) lastTimestamp = timestamp;
@@ -168,6 +180,28 @@ Module.onRuntimeInitialized = () => {
                     `${BODY_NAMES[i - 1]}${i > 1 ? ' (' + revolutionCounts[i] + ')' : ''}`,
                     screenX + displayRadiusPx[i - 1] + 4, screenY + 3
                 );
+            }
+
+            // Moons: rendered at an exaggerated distance from the planet
+            // (real moon-planet distances are far too small to show at
+            // the same scale as the planets' distances from the Sun).
+            // Only drawn once zoomed in enough to avoid visual clutter.
+            const nMoons = moonCounts[i - 1];
+            if (nMoons > 0 && pxPerAu > 15) {
+                for (let m = 1; m <= nMoons; m++) {
+                    getMoonPositionUnit(i, m, simulatedDays, xPtr, yPtr);
+                    const ux = Module.HEAPF64[xPtr / 8];
+                    const uy = Module.HEAPF64[yPtr / 8];
+
+                    const moonOrbitPx = displayRadiusPx[i - 1] + 8 + (m - 1) * 6;
+                    const moonX = screenX + ux * moonOrbitPx;
+                    const moonY = screenY + uy * moonOrbitPx;
+
+                    ctx.beginPath();
+                    ctx.fillStyle = '#bbbbbb';
+                    ctx.arc(moonX, moonY, 1.5, 0, Math.PI * 2);
+                    ctx.fill();
+                }
             }
         }
 
