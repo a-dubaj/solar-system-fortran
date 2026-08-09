@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Solar System Simulation (Fortran + WebAssembly)</title>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            overflow: hidden;
+            height: 100%;
+        }
+        canvas {
+            display: block;
+            cursor: grab;
+        }
+        canvas:active {
+            cursor: grabbing;
+        }
+        #controls {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            color: #ccc;
+            font-family: monospace;
+            font-size: 13px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 8px 12px;
+            border-radius: 4px;
+        }
+        #controls button {
+            margin-right: 6px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <div id="controls">
+        <button id="pause-btn">Pause</button>
+        <button id="speed-down">0.5x</button>
+        <span id="speed-label">Speed: 1x</span>
+        <button id="speed-up">2x</button>
+        <br>
+        Scroll to zoom, drag to pan.
+    </div>
+
+    <script src="orbital_mechanics.js"></script>
+    <script src="main.js"></script>
+</body>
+</html>
