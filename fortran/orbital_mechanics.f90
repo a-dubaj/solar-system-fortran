@@ -22,6 +22,12 @@ module orbital_data
         [1.0d0, 87.969d0, 224.701d0, 365.256d0, 686.980d0, &
          4332.589d0, 10759.22d0, 30688.5d0, 60182.0d0]
 
+    ! Mean orbital speed, in km/s - a physical constant per body, independent
+    ! of simulation playback speed. 0 for the Sun (not applicable).
+    real(8), parameter :: orbital_speed_kms(9) = &
+        [0.0d0, 47.4d0, 35.0d0, 29.8d0, 24.1d0, &
+         13.1d0, 9.7d0, 6.8d0, 5.4d0]
+
     ! Relative body radius in km, used to keep size proportions realistic
     real(8), parameter :: body_radius_km(9) = &
         [696340.0d0, 2439.7d0, 6051.8d0, 6371.0d0, 3389.5d0, &
@@ -120,6 +126,20 @@ contains
             p = orbital_period_days(body_index)
         end if
     end function get_orbital_period_days
+
+    ! Mean orbital speed of a body, in km/s (a physical constant, not
+    ! affected by simulation playback speed)
+    function get_orbital_speed_kms(body_index) &
+            bind(c, name="get_orbital_speed_kms") result(v)
+        integer(c_int), value :: body_index
+        real(c_double) :: v
+
+        if (body_index < 1 .or. body_index > n_bodies) then
+            v = 0.0d0
+        else
+            v = orbital_speed_kms(body_index)
+        end if
+    end function get_orbital_speed_kms
 
     ! Number of simulated moons for a given body (0 if none)
     function get_moon_count(body_index) bind(c, name="get_moon_count") result(n)

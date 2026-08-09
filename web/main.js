@@ -96,6 +96,7 @@ Module.onRuntimeInitialized = () => {
     const getBodyCount = Module.cwrap('get_body_count', 'number', []);
     const getBodyRadiusKm = Module.cwrap('get_body_radius_km', 'number', ['number']);
     const getOrbitalPeriodDays = Module.cwrap('get_orbital_period_days', 'number', ['number']);
+    const getOrbitalSpeedKms = Module.cwrap('get_orbital_speed_kms', 'number', ['number']);
     const getMoonCount = Module.cwrap('get_moon_count', 'number', ['number']);
     const getMoonPositionUnit = Module.cwrap(
         'get_moon_position_unit', null, ['number', 'number', 'number', 'number', 'number']
@@ -119,6 +120,51 @@ Module.onRuntimeInitialized = () => {
 
     const revolutionCounts = new Array(bodyCount + 1).fill(0);
     const lastAngle = new Array(bodyCount + 1).fill(0);
+
+    // Build the stats table once: one row per body, with a colored dot,
+    // a revolution count (updates every frame), and a constant orbital
+    // speed value (fetched once - it's a physical constant, unaffected
+    // by simulation playback speed).
+    const statsEl = document.getElementById('stats-table');
+    const table = document.createElement('table');
+    const thead = document.createElement('thead');
+    thead.innerHTML = '<tr><th>Planet</th><th>Orbits</th><th>km/s</th></tr>';
+    table.appendChild(thead);
+    const tbody = document.createElement('tbody');
+    table.appendChild(tbody);
+    statsEl.appendChild(table);
+
+    const orbitCountCells = new Array(bodyCount + 1);
+    for (let i = 1; i <= bodyCount; i++) {
+        const tr = document.createElement('tr');
+
+        const nameCell = document.createElement('td');
+        const dot = document.createElement('span');
+        dot.className = 'stats-dot';
+        dot.style.background = BODY_COLORS[i - 1];
+        nameCell.appendChild(dot);
+        nameCell.appendChild(document.createTextNode(BODY_NAMES[i - 1]));
+        tr.appendChild(nameCell);
+
+        if (i === 1) {
+            // Sun: no orbit count or orbital speed
+            tr.appendChild(document.createElement('td'));
+            tr.appendChild(document.createElement('td'));
+        } else {
+            const orbitsCell = document.createElement('td');
+            orbitsCell.className = 'num';
+            orbitsCell.textContent = '0';
+            orbitCountCells[i] = orbitsCell;
+            tr.appendChild(orbitsCell);
+
+            const speedCell = document.createElement('td');
+            speedCell.className = 'num';
+            speedCell.textContent = getOrbitalSpeedKms(i).toFixed(1);
+            tr.appendChild(speedCell);
+        }
+
+        tbody.appendChild(tr);
+    }
 
     // Moon counts per body, fetched once (they never change during the run)
     const moonCounts = [];
@@ -155,6 +201,7 @@ Module.onRuntimeInitialized = () => {
             if (i > 1) {
                 if (lastAngle[i] > Math.PI / 2 && angle < -Math.PI / 2) {
                     revolutionCounts[i]++;
+                    orbitCountCells[i].textContent = revolutionCounts[i];
                 }
                 lastAngle[i] = angle;
             }
